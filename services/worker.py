@@ -46,12 +46,10 @@ class PotionWorker(QThread):
 
         self._heal_ctrl.update_settings(
             threshold=float(config.get("heal_threshold", 45)),
-            hysteresis=float(config.get("heal_hysteresis", 10)),
             cooldown=float(config.get("potion_cooldown", 1.0)),
         )
         self._mana_ctrl.update_settings(
             threshold=float(config.get("mana_threshold", 45)),
-            hysteresis=float(config.get("mana_hysteresis", 10)),
             cooldown=float(config.get("potion_cooldown", 1.0)),
         )
 

@@ -23,7 +23,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "mana_key": "2",
     "heal_threshold": 45,
     "mana_threshold": 45,
-    "heal_hysteresis": 10,
+    "heal_hysteresis": 10,  # 已廢棄，保留以相容舊 config.json
     "mana_hysteresis": 10,
     "potion_cooldown": 1.0,
     "poll_interval_ms": 80,
