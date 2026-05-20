@@ -1,5 +1,5 @@
 # POE2 自動補血/補魔
-![Uploading image.png…]()
+<img width="288" height="292" alt="image" src="https://github.com/user-attachments/assets/1e9c6b95-56f8-41dd-91e2-faefde8a8185" />
 
 透過螢幕擷取分析生命球與魔力球的填充比例，低於門檻時自動按下你設定的藥水按鍵。附半透明遊戲浮層與全域熱鍵。
 
