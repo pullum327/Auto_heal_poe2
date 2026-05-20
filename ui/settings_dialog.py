@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
-    QLineEdit,
     QWidget,
 )
 
@@ -123,18 +122,26 @@ class SettingsDialog(QDialog):
         misc_group = QGroupBox("其他")
         misc_form = QFormLayout(misc_group)
         self.cooldown_spin = QDoubleSpinBox()
-        self.cooldown_spin.setRange(0.5, 3.0)
-        self.cooldown_spin.setSingleStep(0.1)
+        self.cooldown_spin.setRange(0.25, 3.0)
+        self.cooldown_spin.setSingleStep(0.05)
+        self.cooldown_spin.setDecimals(2)
         self.cooldown_spin.setValue(float(config.get("potion_cooldown", 1.0)))
         misc_form.addRow("藥水冷卻 (秒)", self.cooldown_spin)
 
-        self.hotkey_heal = QLineEdit(str(config.get("hotkey_heal_toggle", "f6")))
-        self.hotkey_mana = QLineEdit(str(config.get("hotkey_mana_toggle", "f7")))
-        self.hotkey_master = QLineEdit(str(config.get("hotkey_master_toggle", "f8")))
-        misc_form.addRow("熱鍵：補血開關", self.hotkey_heal)
-        misc_form.addRow("熱鍵：補魔開關", self.hotkey_mana)
-        misc_form.addRow("熱鍵：全域暫停 (F8)", self.hotkey_master)
         layout.addWidget(misc_group)
+
+        hotkey_group = QGroupBox("熱鍵（點擊後按下欲設定的鍵）")
+        hotkey_form = QFormLayout(hotkey_group)
+        self.hotkey_heal_btn = KeyCaptureButton()
+        self.hotkey_heal_btn.set_key(str(config.get("hotkey_heal_toggle", "f6")))
+        self.hotkey_mana_btn = KeyCaptureButton()
+        self.hotkey_mana_btn.set_key(str(config.get("hotkey_mana_toggle", "f7")))
+        self.hotkey_master_btn = KeyCaptureButton()
+        self.hotkey_master_btn.set_key(str(config.get("hotkey_master_toggle", "f8")))
+        hotkey_form.addRow("補血開關", self.hotkey_heal_btn)
+        hotkey_form.addRow("補魔開關", self.hotkey_mana_btn)
+        hotkey_form.addRow("全域暫停", self.hotkey_master_btn)
+        layout.addWidget(hotkey_group)
 
         cal_group = QGroupBox("球體校正（點擊球心）")
         cal_form = QVBoxLayout(cal_group)
@@ -190,10 +197,8 @@ class SettingsDialog(QDialog):
         self._config["mana_threshold"] = self.mana_slider.value()
         self._config["potion_cooldown"] = self.cooldown_spin.value()
         self._config["orb_radius_percent"] = self.radius_spin.value()
-        self._config["hotkey_heal_toggle"] = self.hotkey_heal.text().strip().lower() or "f6"
-        self._config["hotkey_mana_toggle"] = self.hotkey_mana.text().strip().lower() or "f7"
-        self._config["hotkey_master_toggle"] = (
-            self.hotkey_master.text().strip().lower() or "f8"
-        )
+        self._config["hotkey_heal_toggle"] = self.hotkey_heal_btn.key() or "f6"
+        self._config["hotkey_mana_toggle"] = self.hotkey_mana_btn.key() or "f7"
+        self._config["hotkey_master_toggle"] = self.hotkey_master_btn.key() or "f8"
         self._on_save(self._config)
         self.accept()
