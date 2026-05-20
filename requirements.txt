@@ -1,0 +1,6 @@
+PyQt6>=6.6
+mss>=9.0
+numpy>=1.26
+pydirectinput>=1.0.4
+pynput>=1.7
+Pillow>=10.0
