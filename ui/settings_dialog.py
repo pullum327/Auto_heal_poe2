@@ -136,14 +136,26 @@ class SettingsDialog(QDialog):
         misc_form.addRow("熱鍵：全域暫停 (F8)", self.hotkey_master)
         layout.addWidget(misc_group)
 
-        cal_group = QGroupBox("球體校正")
-        cal_layout = QHBoxLayout(cal_group)
+        cal_group = QGroupBox("球體校正（點擊球心）")
+        cal_form = QVBoxLayout(cal_group)
+        self.radius_spin = QDoubleSpinBox()
+        self.radius_spin.setRange(5.0, 12.0)
+        self.radius_spin.setSingleStep(0.5)
+        self.radius_spin.setSuffix(" %")
+        self.radius_spin.setValue(float(config.get("orb_radius_percent", 7.5)))
+        radius_row = QHBoxLayout()
+        radius_row.addWidget(QLabel("球體半徑（螢幕高度 %）"))
+        radius_row.addWidget(self.radius_spin)
+        cal_form.addLayout(radius_row)
+
+        cal_layout = QHBoxLayout()
         btn_life = QPushButton("校正生命球")
         btn_mana = QPushButton("校正魔力球")
         btn_life.clicked.connect(self._calibrate_life)
         btn_mana.clicked.connect(self._calibrate_mana)
         cal_layout.addWidget(btn_life)
         cal_layout.addWidget(btn_mana)
+        cal_form.addLayout(cal_layout)
         layout.addWidget(cal_group)
 
         btn_row = QHBoxLayout()
@@ -177,6 +189,7 @@ class SettingsDialog(QDialog):
         self._config["heal_threshold"] = self.heal_slider.value()
         self._config["mana_threshold"] = self.mana_slider.value()
         self._config["potion_cooldown"] = self.cooldown_spin.value()
+        self._config["orb_radius_percent"] = self.radius_spin.value()
         self._config["hotkey_heal_toggle"] = self.hotkey_heal.text().strip().lower() or "f6"
         self._config["hotkey_mana_toggle"] = self.hotkey_mana.text().strip().lower() or "f7"
         self._config["hotkey_master_toggle"] = (

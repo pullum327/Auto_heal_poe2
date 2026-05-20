@@ -1,77 +1,105 @@
-"""全螢幕框選球體校正。"""
+"""點擊球心校正覆蓋層。"""
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, Literal
 
+import mss
 import numpy as np
 from PyQt6.QtCore import Qt, QRect, QPoint
-from PyQt6.QtGui import QImage, QPixmap, QPainter, QPen, QColor, QFont
+from PyQt6.QtGui import QFont, QPainter, QPen, QColor, QGuiApplication
 from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout, QHBoxLayout, QPushButton
 
-from core.capture import ScreenCapture
+from core.orb_detector import _rgb_to_hsv
+from core.screen_coords import (
+    bounds_at_qt_point,
+    orb_rect_from_center,
+    physical_rect_to_qt,
+    primary_monitor_physical_bounds,
+    qt_global_to_physical,
+    radius_from_percent,
+)
 
 
-def _numpy_rgb_to_pixmap(rgb: np.ndarray) -> QPixmap:
-    """將 RGB numpy 陣列轉為 QPixmap（相容新版 numpy / PyQt6）。"""
-    img = np.ascontiguousarray(rgb, dtype=np.uint8)
-    h, w = img.shape[:2]
-    bytes_per_line = 3 * w
-    qimg = QImage(
-        img.tobytes(),
-        w,
-        h,
-        bytes_per_line,
-        QImage.Format.Format_RGB888,
-    )
-    return QPixmap.fromImage(qimg)
+def _sample_color_at(cx: int, cy: int) -> tuple[float, float, float] | None:
+    try:
+        with mss.mss() as sct:
+            shot = sct.grab({"left": cx, "top": cy, "width": 1, "height": 1})
+            px = np.array(shot, dtype=np.uint8)[0, 0, :3][::-1].astype(np.float64)
+            hsv = _rgb_to_hsv(px.reshape(1, 3))[0]
+            return float(hsv[0]), float(hsv[1]), float(hsv[2])
+    except Exception:
+        return None
 
 
-class SelectionOverlay(QWidget):
+def _color_warning(orb_type: Literal["life", "mana"], hsv: tuple[float, float, float]) -> str:
+    h, s, v = hsv
+    if s < 0.15 or v < 0.1:
+        return ""
+    if orb_type == "life":
+        is_life = (h < 35 or h > 330) and s > 0.2
+        if not is_life and 90 < h < 150:
+            return "提示：此處偏藍，似乎不是生命球"
+    else:
+        is_mana = 90 < h < 150 and s > 0.15
+        if not is_mana and (h < 35 or h > 330):
+            return "提示：此處偏紅，似乎不是魔力球"
+    return ""
+
+
+class ClickCalibrationOverlay(QWidget):
     def __init__(
         self,
-        screenshot: np.ndarray,
-        offset_x: int,
-        offset_y: int,
+        orb_type: Literal["life", "mana"],
         title: str,
+        radius_percent: float,
         on_done: Callable[[tuple[int, int, int, int] | None], None],
     ) -> None:
         super().__init__()
-        self._offset_x = offset_x
-        self._offset_y = offset_y
+        self._orb_type = orb_type
         self._on_done = on_done
-        self._origin: QPoint | None = None
-        self._current: QPoint | None = None
-        self._selection: QRect | None = None
+        self._title = title
+        self._radius_percent = radius_percent
+        self._bounds = primary_monitor_physical_bounds()
+        self._radius_px = radius_from_percent(radius_percent, self._bounds)
+        self._center: tuple[int, int] | None = None
+        self._preview_rect: tuple[int, int, int, int] | None = None
+        self._preview_qt: QRect | None = None
+        self._warning = ""
 
-        h, w, _ = screenshot.shape
-        self._pixmap = _numpy_rgb_to_pixmap(screenshot)
+        virtual = QRect()
+        for scr in QGuiApplication.screens():
+            virtual = virtual.united(scr.geometry())
+        if virtual.isValid():
+            self.setGeometry(virtual)
+        else:
+            self.setGeometry(0, 0, 1920, 1080)
 
         self.setWindowFlags(
             Qt.WindowType.FramelessWindowHint
             | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.Tool
+            | Qt.WindowType.Tool,
         )
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, False)
-        self.setGeometry(offset_x, offset_y, w, h)
-
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        self.setCursor(Qt.CursorShape.CrossCursor)
         self.setMouseTracking(True)
-        # 子元件不攔截拖曳（按鈕除外）
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(12, 12, 12, 12)
 
-        hint = QLabel(f"{title}：拖曳框選球體，Enter 確認 / Esc 取消")
-        hint.setStyleSheet(
-            "color: white; background: rgba(0,0,0,0.7); padding: 8px; border-radius: 6px;"
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+
+        self._hint = QLabel(self._hint_text())
+        self._hint.setStyleSheet(
+            "color: white; background: rgba(0,0,0,0.75); padding: 12px;"
+            " border-radius: 8px; font-size: 11pt;"
         )
-        hint.setFont(QFont("Microsoft JhengHei", 11))
-        hint.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
-        layout.addWidget(hint, alignment=Qt.AlignmentFlag.AlignTop)
+        self._hint.setFont(QFont("Microsoft JhengHei", 11))
+        self._hint.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        layout.addWidget(self._hint, alignment=Qt.AlignmentFlag.AlignTop)
         layout.addStretch()
 
         btn_row = QHBoxLayout()
-        confirm = QPushButton("確認")
-        cancel = QPushButton("取消")
+        confirm = QPushButton("確認 (Enter)")
+        cancel = QPushButton("取消 (Esc)")
         for b in (confirm, cancel):
             b.setStyleSheet(
                 "QPushButton { background: #3d5afe; color: white; padding: 8px 16px;"
@@ -81,65 +109,84 @@ class SelectionOverlay(QWidget):
         confirm.clicked.connect(self._confirm)
         cancel.clicked.connect(lambda: self._finish(None))
         btn_row.addStretch()
-        btn_row.addWidget(confirm)
         btn_row.addWidget(cancel)
+        btn_row.addWidget(confirm)
         layout.addLayout(btn_row)
+
+    def _hint_text(self, extra: str = "") -> str:
+        base = (
+            f"{self._title}\n"
+            "點擊球體液體中心 · 滾輪調整大小 · Enter 確認 · Esc 取消"
+        )
+        if extra:
+            return base + "\n" + extra
+        return base
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
-        painter.drawPixmap(0, 0, self._pixmap)
-        painter.fillRect(self.rect(), QColor(0, 0, 0, 80))
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 115))
 
-        if self._selection and self._selection.width() > 2 and self._selection.height() > 2:
-            painter.setPen(QPen(QColor(61, 90, 254), 2, Qt.PenStyle.SolidLine))
-            painter.setBrush(QColor(61, 90, 254, 40))
-            painter.drawRect(self._selection)
+        if self._preview_qt and self._preview_qt.width() > 2:
+            painter.setPen(QPen(QColor(76, 175, 80), 3, Qt.PenStyle.SolidLine))
+            painter.setBrush(QColor(76, 175, 80, 50))
+            painter.drawRect(self._preview_qt)
             painter.setPen(QPen(Qt.GlobalColor.white))
+            r = self._preview_qt
             painter.drawText(
-                self._selection.topLeft() + QPoint(4, -6),
-                f"{self._selection.width()}×{self._selection.height()}",
+                r.topLeft() + QPoint(4, -8),
+                f"{r.width()}×{r.height()} px",
             )
 
     def mousePressEvent(self, event) -> None:
-        if event.button() == Qt.MouseButton.LeftButton:
-            self._origin = event.position().toPoint()
-            self._current = self._origin
-            self._selection = QRect(self._origin, self._current)
-            self.update()
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
+        self._bounds = bounds_at_qt_point(event.globalPosition())
+        self._radius_px = radius_from_percent(self._radius_percent, self._bounds)
+        cx, cy = qt_global_to_physical(event.globalPosition())
+        self._center = (cx, cy)
+        self._update_preview()
 
-    def mouseMoveEvent(self, event) -> None:
-        if self._origin is not None:
-            self._current = event.position().toPoint()
-            self._selection = QRect(self._origin, self._current).normalized()
-            self.update()
+        hsv = _sample_color_at(cx, cy)
+        self._warning = _color_warning(self._orb_type, hsv) if hsv else ""
+        extra = f"半徑 {self._radius_percent:.1f}%（{self._radius_px} px）"
+        if self._warning:
+            extra += f" · {self._warning}"
+        self._hint.setText(self._hint_text(extra))
+        self.update()
 
-    def mouseReleaseEvent(self, event) -> None:
-        if self._origin is not None:
-            self._current = event.position().toPoint()
-            self._selection = QRect(self._origin, self._current).normalized()
-            self._origin = None
+    def wheelEvent(self, event) -> None:
+        delta = event.angleDelta().y()
+        step = 0.5 if delta > 0 else -0.5
+        self._radius_percent = max(5.0, min(12.0, self._radius_percent + step))
+        self._radius_px = radius_from_percent(self._radius_percent, self._bounds)
+        if self._center:
+            self._update_preview()
+            extra = f"半徑 {self._radius_percent:.1f}%（{self._radius_px} px）"
+            if self._warning:
+                extra += f" · {self._warning}"
+            self._hint.setText(self._hint_text(extra))
             self.update()
 
     def keyPressEvent(self, event) -> None:
-        if event.key() == Qt.Key.Key_Return or event.key() == Qt.Key.Key_Enter:
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self._confirm()
         elif event.key() == Qt.Key.Key_Escape:
             self._finish(None)
         else:
             super().keyPressEvent(event)
 
-    def _confirm(self) -> None:
-        if not self._selection or self._selection.width() < 5 or self._selection.height() < 5:
-            self._finish(None)
+    def _update_preview(self) -> None:
+        if self._center is None:
             return
-        r = self._selection
-        rect = (
-            r.x() + self._offset_x,
-            r.y() + self._offset_y,
-            r.width(),
-            r.height(),
-        )
-        self._finish(rect)
+        cx, cy = self._center
+        self._preview_rect = orb_rect_from_center(cx, cy, self._radius_px, self._bounds)
+        self._preview_qt = physical_rect_to_qt(self._preview_rect, self._bounds)
+
+    def _confirm(self) -> None:
+        if self._preview_rect is None:
+            self._hint.setText(self._hint.text() + "\n請先點擊球體中心")
+            return
+        self._finish(self._preview_rect)
 
     def _finish(self, rect: tuple[int, int, int, int] | None) -> None:
         self._on_done(rect)
@@ -147,10 +194,12 @@ class SelectionOverlay(QWidget):
 
 
 def run_calibration(
+    orb_type: Literal["life", "mana"],
     orb_label: str,
+    radius_percent: float,
     on_complete: Callable[[tuple[int, int, int, int] | None], None],
 ) -> None:
-    capture = ScreenCapture()
-    img, ox, oy = capture.grab_full_screen()
-    overlay = SelectionOverlay(img, ox, oy, orb_label, on_complete)
+    overlay = ClickCalibrationOverlay(orb_type, orb_label, radius_percent, on_complete)
     overlay.showFullScreen()
+    overlay.raise_()
+    overlay.activateWindow()

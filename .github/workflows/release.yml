@@ -1,0 +1,37 @@
+name: Build Windows Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        run: pyinstaller poe2_auto_flask.spec --noconfirm
+
+      - name: Create ZIP
+        run: |
+          Compress-Archive -Path dist\POE2_AutoFlask\* -DestinationPath dist\POE2_AutoFlask-Windows.zip
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/POE2_AutoFlask-Windows.zip
+          generate_release_notes: true

@@ -96,7 +96,7 @@ class OrbDetector:
         return self._smoothed()
 
     def capture_reference_from_rect(self) -> tuple[float, float, float] | None:
-        """從球體底部取樣作為滿填充參考色。"""
+        """從球體中心區域取樣作為參考色（避開底部裝飾框）。"""
         if self._rect is None:
             return None
         x, y, w, h = self._rect
@@ -106,11 +106,17 @@ class OrbDetector:
             return None
         if h < 2:
             return None
-        cx = w // 2
-        bottom_rows = img[max(0, h - 3) : h, cx : cx + 1, :]
-        if bottom_rows.size == 0:
+        cx, cy = w // 2, h // 2
+        offsets = [(0, 0), (-2, 0), (2, 0), (0, -2), (0, 2)]
+        pixels_list: list[np.ndarray] = []
+        for dx, dy in offsets:
+            px = cx + dx
+            py = cy + dy
+            if 0 <= px < w and 0 <= py < h:
+                pixels_list.append(img[py, px, :].astype(np.float64))
+        if not pixels_list:
             return None
-        pixels = bottom_rows.reshape(-1, 3).astype(np.float64)
+        pixels = np.stack(pixels_list)
         hsv = _rgb_to_hsv(pixels)
         mean = hsv.mean(axis=0)
         return float(mean[0]), float(mean[1]), float(mean[2])
@@ -126,35 +132,64 @@ class OrbDetector:
     def _compute_fill(self, img: np.ndarray) -> float:
         h, w, _ = img.shape
         cx = w // 2
+        cy_center = h / 2.0
+        circle_r = min(w, h) / 2.0 * 0.85
         ys = np.linspace(h - 1, 0, self.SAMPLE_COUNT).astype(int)
-        pixels = img[ys, cx, :].astype(np.float64)
-        filled = np.array([self._is_filled_pixel(p) for p in pixels])
 
-        top_filled = 0
-        for i, is_fill in enumerate(filled):
-            if is_fill:
-                top_filled = i
-            else:
-                break
-        if not filled.any():
+        filled_flags: list[bool] = []
+        valid_count = 0
+        for y in ys:
+            dy = y - cy_center
+            if abs(dy) > circle_r:
+                continue
+            valid_count += 1
+            pixel = img[y, cx, :].astype(np.float64)
+            filled_flags.append(self._is_filled_pixel(pixel))
+
+        if valid_count == 0 or not filled_flags:
             return 0.0
-        return (top_filled + 1) / self.SAMPLE_COUNT * 100.0
+
+        filled_count = int(sum(filled_flags))
+        return filled_count / valid_count * 100.0
 
     def _is_filled_pixel(self, rgb: np.ndarray) -> bool:
+        r, g, b = float(rgb[0]), float(rgb[1]), float(rgb[2])
+        if self._matches_rgb_dominance(r, g, b):
+            return True
+
         hsv = _rgb_to_hsv(rgb.reshape(1, 3))[0]
         h, s, v = float(hsv[0]), float(hsv[1]), float(hsv[2])
 
-        if self._ref_hsv is not None:
-            rh, rs, rv = self._ref_hsv
-            dh = min(abs(h - rh), 360 - abs(h - rh))
-            if dh < 25 and abs(s - rs) < 0.35 and abs(v - rv) < 0.35:
-                return True
-            if s > 0.25 and v > 0.2 and dh < 40:
-                return True
+        if self._ref_hsv is not None and self._matches_reference_hsv(h, s, v):
+            return True
 
-        if self.orb_type == "life":
-            return (h < 35 or h > 330) and s > 0.25 and v > 0.2
-        return 90 < h < 150 and s > 0.2 and v > 0.15
+        return self._matches_hsv_fallback(h, s, v)
+
+    def _matches_rgb_dominance(self, r: float, g: float, b: float) -> bool:
+        """主通道優勢（與魔力球相同思路，分別看 R / B）。"""
+        if self.orb_type == "mana":
+            if b > 50 and b > r * 1.05 and b >= g * 0.8:
+                return True
+            return b > 35 and (b - r) > 15
+        if r > 50 and r > g * 1.05 and r > b * 1.05:
+            return True
+        return r > 35 and (r - g) > 15 and (r - b) > 15
+
+    def _matches_reference_hsv(self, h: float, s: float, v: float) -> bool:
+        rh, rs, rv = self._ref_hsv  # type: ignore[misc]
+        dh = min(abs(h - rh), 360 - abs(h - rh))
+        hue_tol = 55
+        if dh < hue_tol and abs(s - rs) < 0.45 and abs(v - rv) < 0.45:
+            return True
+        return s > 0.12 and v > 0.12 and dh < hue_tol + 15
+
+    def _matches_hsv_fallback(self, h: float, s: float, v: float) -> bool:
+        """寬鬆色域後備（容許 POE2 高光、雲紋）。"""
+        if s < 0.08 or v < 0.12:
+            return False
+        if self.orb_type == "mana":
+            return 70 < h < 270
+        return h < 45 or h > 300
 
     def _is_frame_anomaly(self, img: np.ndarray, fill: float) -> bool:
         mean = img.mean()

@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 import json
+import sys
 from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-CONFIG_PATH = Path(__file__).resolve().parent / "config.json"
+
+def app_dir() -> Path:
+    """開發模式：專案目錄；打包後：exe 所在目錄。"""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+CONFIG_PATH = app_dir() / "config.json"
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "heal_key": "1",
@@ -31,6 +40,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "mana_reference_hsv": None,
     "overlay_x": 100,
     "overlay_y": 100,
+    "orb_radius_percent": 7.5,
 }
 
 

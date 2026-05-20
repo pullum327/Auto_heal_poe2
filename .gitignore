@@ -1,8 +1,12 @@
 .venv/
+build/
+dist/
+*.spec.bak
 __pycache__/
 *.py[cod]
 *.pyo
 config.json
+debug-*.log
 .cursor/
 *.egg-info/
 dist/

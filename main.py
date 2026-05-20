@@ -94,7 +94,12 @@ class AppController:
             self._on_config_changed(self.config)
             self.overlay.apply_config(self.config)
 
-        run_calibration(label, on_done)
+        run_calibration(
+            orb,
+            label,
+            float(self.config.get("orb_radius_percent", 7.5)),
+            on_done,
+        )
 
     def run(self) -> int:
         self.overlay.show()
