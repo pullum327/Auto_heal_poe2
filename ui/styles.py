@@ -8,164 +8,174 @@ QDialog {
 }
 """
 
+# 設定頁面板自繪漸層色（淺色不透明，避免穿透遊戲畫面）
+SETTINGS_PANEL_RADIUS = 22
+SETTINGS_GRADIENT_TOP = (148, 142, 178)
+SETTINGS_GRADIENT_MID = (132, 126, 162)
+SETTINGS_GRADIENT_BOTTOM = (116, 110, 148)
+SETTINGS_BORDER_OUTER = (255, 255, 255, 140)
+SETTINGS_BORDER_INNER = (255, 255, 255, 55)
+SETTINGS_HIGHLIGHT_TOP = (255, 255, 255, 48)
+
 GLASS_DIALOG_PANEL = """
 QFrame#glassDialogPanel {
-    background-color: #322454;
-    background: qlineargradient(
-        x1:0, y1:0, x2:0, y2:1,
-        stop:0 #3d2d5c,
-        stop:0.45 #2a1e42,
-        stop:1 #181024
-    );
-    border: 1px solid rgba(190, 180, 255, 0.5);
-    border-radius: 20px;
+    background: transparent;
+    border: none;
 }
 """
 
 GLASS_DIALOG_CONTENT = f"""
 QFrame#glassDialogPanel QLabel {{
-    color: #ebe9f7;
+    color: #3a3550;
     font-family: {FONT_FAMILY};
 }}
 QLabel#dialogTitle {{
-    color: #ffffff;
+    color: #2a2640;
     font-weight: bold;
 }}
-QLabel#sectionTitle {{
-    color: rgba(186, 176, 255, 0.92);
-    font-size: 8pt;
-    font-weight: 700;
-    letter-spacing: 1px;
-    padding: 10px 2px 4px 2px;
-}}
 QLabel#formLabel {{
-    color: rgba(235, 232, 255, 0.88);
+    color: #5c5678;
     font-size: 10pt;
     min-width: 72px;
 }}
 QLabel#thresholdLife {{
-    color: #ff9e94;
+    color: #c45c52;
     font-weight: 700;
     font-size: 10pt;
 }}
 QLabel#thresholdMana {{
-    color: #90caf9;
+    color: #4a7ab8;
     font-weight: 700;
     font-size: 10pt;
 }}
-QScrollArea {{
-    background-color: #2a1e42;
+QFrame#settingsHeaderDivider {{
+    background: qlineargradient(
+        x1:0, y1:0, x2:1, y2:0,
+        stop:0 rgba(255, 255, 255, 0),
+        stop:0.5 rgba(255, 255, 255, 0.55),
+        stop:1 rgba(255, 255, 255, 0)
+    );
+    max-height: 1px;
+    min-height: 1px;
     border: none;
 }}
-QScrollArea > QWidget > QWidget,
-QWidget#settingsScrollContent {{
-    background-color: #2a1e42;
-}}
-QGroupBox {{
-    background-color: #1f1632;
-    border: 1px solid rgba(255, 255, 255, 0.16);
+QScrollArea#settingsScroll {{
+    background-color: #b4aed0;
+    border: 1px solid rgba(255, 255, 255, 0.45);
     border-radius: 14px;
-    margin-top: 18px;
-    padding: 22px 14px 14px 14px;
-    font-weight: 600;
-    color: #f0ecff;
 }}
-QGroupBox::title {{
-    subcontrol-origin: margin;
-    left: 14px;
-    padding: 0 10px;
-    color: #e0dbff;
+QScrollArea#settingsScroll > QWidget > QWidget {{
+    background-color: #b4aed0;
+    border-radius: 14px;
+}}
+QWidget#settingsScrollContent {{
+    background-color: #b4aed0;
+}}
+QFrame#settingsSection {{
+    background-color: #c8c2dc;
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: 16px;
 }}
 QPushButton {{
-    background: rgba(255, 255, 255, 0.08);
-    color: #f5f2ff;
-    border: 1px solid rgba(255, 255, 255, 0.18);
+    background-color: rgba(255, 255, 255, 0.42);
+    color: #3a3550;
+    border: 1px solid rgba(255, 255, 255, 0.65);
     padding: 10px 18px;
-    border-radius: 10px;
+    border-radius: 12px;
     font-weight: 500;
     min-height: 20px;
 }}
 QPushButton:hover {{
-    background: rgba(255, 255, 255, 0.14);
-    border-color: rgba(255, 255, 255, 0.32);
+    background-color: rgba(255, 255, 255, 0.62);
+    border-color: rgba(255, 255, 255, 0.85);
 }}
 QPushButton#primaryBtn {{
     background: qlineargradient(
         x1:0, y1:0, x2:1, y2:0,
-        stop:0 #6c5ce7, stop:1 #9b8cff
+        stop:0 #8b7ec8, stop:1 #b8b0e8
     );
-    border: 1px solid rgba(255, 255, 255, 0.28);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.55);
     font-weight: 600;
 }}
 QPushButton#primaryBtn:hover {{
     background: qlineargradient(
         x1:0, y1:0, x2:1, y2:0,
-        stop:0 #7d6ff0, stop:1 #b3adff
+        stop:0 #9d90d4, stop:1 #ccc6f0
     );
 }}
 QPushButton#calLifeBtn {{
-    background: rgba(229, 57, 53, 0.25);
-    border-color: rgba(255, 138, 128, 0.45);
+    background-color: rgba(255, 220, 215, 0.75);
+    color: #8b3a34;
+    border-color: rgba(220, 120, 110, 0.45);
 }}
 QPushButton#calLifeBtn:hover {{
-    background: rgba(229, 57, 53, 0.4);
+    background-color: rgba(255, 200, 195, 0.9);
 }}
 QPushButton#calManaBtn {{
-    background: rgba(21, 101, 192, 0.3);
-    border-color: rgba(130, 177, 255, 0.45);
+    background-color: rgba(210, 228, 255, 0.8);
+    color: #2e5a8a;
+    border-color: rgba(120, 160, 220, 0.45);
 }}
 QPushButton#calManaBtn:hover {{
-    background: rgba(21, 101, 192, 0.45);
+    background-color: rgba(195, 218, 255, 0.95);
 }}
 QPushButton#keyCaptureBtn {{
-    background: rgba(0, 0, 0, 0.45);
-    color: #ffffff;
-    border: 1px dashed rgba(162, 155, 254, 0.65);
+    background-color: rgba(255, 255, 255, 0.5);
+    color: #3a3550;
+    border: 1px dashed rgba(120, 108, 168, 0.55);
     min-width: 88px;
     font-weight: 600;
     letter-spacing: 1px;
 }}
 QPushButton#keyCaptureBtn[capturing="true"] {{
     border-style: solid;
-    border-color: #a29bfe;
-    background: rgba(108, 92, 231, 0.35);
-    color: #fff;
+    border-color: #8b7ec8;
+    background-color: rgba(200, 190, 235, 0.85);
+    color: #2a2640;
 }}
 QLineEdit, QDoubleSpinBox, QSpinBox {{
-    background: rgba(0, 0, 0, 0.42);
-    border: 1px solid rgba(255, 255, 255, 0.18);
-    border-radius: 8px;
+    background-color: rgba(255, 255, 255, 0.48);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    border-radius: 10px;
     padding: 8px 10px;
-    color: #f0ecff;
+    color: #3a3550;
     min-height: 18px;
 }}
 QSlider::groove:horizontal {{
-    height: 8px;
-    background: rgba(0, 0, 0, 0.4);
-    border-radius: 4px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.45);
+    border-radius: 3px;
 }}
 QSlider::sub-page:horizontal {{
     background: qlineargradient(
         x1:0, y1:0, x2:1, y2:0,
-        stop:0 #6c5ce7, stop:1 #a29bfe
+        stop:0 #9d90d4, stop:1 #c4b8e8
     );
-    border-radius: 4px;
+    border-radius: 3px;
 }}
 QSlider::handle:horizontal {{
-    width: 18px;
-    margin: -6px 0;
-    background: #ece8ff;
-    border: 2px solid #6c5ce7;
-    border-radius: 9px;
+    width: 16px;
+    margin: -5px 0;
+    background: #ffffff;
+    border: 2px solid #9d90d4;
+    border-radius: 8px;
 }}
 QScrollBar:vertical {{
-    width: 8px;
+    width: 6px;
     background: transparent;
+    margin: 4px 2px;
 }}
 QScrollBar::handle:vertical {{
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    min-height: 24px;
+    background: rgba(90, 82, 130, 0.28);
+    border-radius: 3px;
+    min-height: 28px;
+}}
+QScrollBar::handle:vertical:hover {{
+    background: rgba(90, 82, 130, 0.42);
+}}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+    height: 0;
 }}
 """
 
@@ -306,6 +316,24 @@ QPushButton {
     padding: 10px 16px;
     font-weight: 600;
     font-size: 9pt;
+}
+"""
+
+SETTINGS_HEADER_BTN = """
+QPushButton#headerCloseBtn {
+    background-color: rgba(255, 255, 255, 0.38);
+    color: #4a4568;
+    border: 1px solid rgba(255, 255, 255, 0.65);
+    border-radius: 11px;
+    padding: 0;
+    margin: 0;
+    font-size: 14px;
+    font-weight: normal;
+}
+QPushButton#headerCloseBtn:hover {
+    background-color: rgba(235, 120, 115, 0.55);
+    color: #5c2020;
+    border-color: rgba(220, 140, 135, 0.7);
 }
 """
 

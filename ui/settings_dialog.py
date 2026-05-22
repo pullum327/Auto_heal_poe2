@@ -1,11 +1,11 @@
-"""設定對話框 — 透明玻璃風格（拖曳方式與主浮層一致）。"""
+"""設定對話框 — 玻璃擬態（高不透明面板 + 外陰影，拖曳與主浮層一致）。"""
 
 from __future__ import annotations
 
 from typing import Any, Callable, Literal
 
 from PyQt6.QtCore import QEvent, QPoint, Qt
-from PyQt6.QtGui import QColor, QPainter
+from PyQt6.QtGui import QColor, QLinearGradient, QPainter, QPen
 from PyQt6.QtWidgets import (
     QDialog,
     QVBoxLayout,
@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox,
     QSpinBox,
     QFormLayout,
-    QGroupBox,
     QWidget,
     QScrollArea,
     QFrame,
@@ -26,9 +25,16 @@ from PyQt6.QtWidgets import (
 )
 
 from ui.styles import (
+    SETTINGS_BORDER_INNER,
+    SETTINGS_BORDER_OUTER,
+    SETTINGS_GRADIENT_BOTTOM,
+    SETTINGS_GRADIENT_MID,
+    SETTINGS_GRADIENT_TOP,
+    SETTINGS_HIGHLIGHT_TOP,
+    SETTINGS_PANEL_RADIUS,
     glass_dialog_stylesheet,
     glass_dialog_panel_stylesheet,
-    HEADER_ICON_BTN,
+    SETTINGS_HEADER_BTN,
 )
 from ui.widgets import KeyCaptureButton, ui_font
 
@@ -36,14 +42,40 @@ _HEADER_BTN_SIZE = 30
 
 
 class SettingsPanel(QFrame):
-    """不透明玻璃面板（避免子元件透明穿透遊戲畫面）。"""
+    """自繪高不透明玻璃面板（子元件維持實色底，避免穿透遊戲）。"""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setAutoFillBackground(False)
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = self.rect().adjusted(1, 1, -1, -1)
+        radius = SETTINGS_PANEL_RADIUS
+
+        grad = QLinearGradient(0, r.top(), 0, r.bottom())
+        grad.setColorAt(0.0, QColor(*SETTINGS_GRADIENT_TOP))
+        grad.setColorAt(0.42, QColor(*SETTINGS_GRADIENT_MID))
+        grad.setColorAt(1.0, QColor(*SETTINGS_GRADIENT_BOTTOM))
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(42, 30, 66))
-        painter.drawRoundedRect(self.rect(), 20, 20)
+        painter.setBrush(grad)
+        painter.drawRoundedRect(r, radius, radius)
+
+        highlight = QLinearGradient(0, r.top(), 0, r.top() + 56)
+        highlight.setColorAt(0.0, QColor(*SETTINGS_HIGHLIGHT_TOP))
+        highlight.setColorAt(1.0, QColor(255, 255, 255, 0))
+        painter.setBrush(highlight)
+        painter.drawRoundedRect(r, radius, radius)
+
+        painter.setPen(QPen(QColor(*SETTINGS_BORDER_OUTER), 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(r, radius, radius)
+
+        painter.setPen(QPen(QColor(*SETTINGS_BORDER_INNER), 1))
+        inner = r.adjusted(2, 2, -2, -2)
+        painter.drawRoundedRect(inner, radius - 2, radius - 2)
+
         super().paintEvent(event)
 
 
@@ -78,14 +110,14 @@ class SettingsDialog(QDialog):
         outer = QVBoxLayout(self)
         outer.setContentsMargins(10, 10, 10, 10)
 
-        panel = SettingsPanel()
-        panel.setObjectName("glassDialogPanel")
-        panel.setStyleSheet(glass_dialog_panel_stylesheet())
-        outer.addWidget(panel)
+        self._panel = SettingsPanel()
+        self._panel.setObjectName("glassDialogPanel")
+        self._panel.setStyleSheet(glass_dialog_panel_stylesheet())
+        outer.addWidget(self._panel)
 
-        root = QVBoxLayout(panel)
-        root.setContentsMargins(18, 16, 18, 14)
-        root.setSpacing(12)
+        root = QVBoxLayout(self._panel)
+        root.setContentsMargins(20, 18, 20, 16)
+        root.setSpacing(14)
 
         header = QHBoxLayout()
         title = QLabel("設定")
@@ -94,7 +126,7 @@ class SettingsDialog(QDialog):
         close_btn = QPushButton("✕")
         close_btn.setObjectName("headerCloseBtn")
         close_btn.setFixedSize(_HEADER_BTN_SIZE, _HEADER_BTN_SIZE)
-        close_btn.setStyleSheet(HEADER_ICON_BTN)
+        close_btn.setStyleSheet(SETTINGS_HEADER_BTN)
         close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         close_btn.setToolTip("關閉")
         close_btn.clicked.connect(self.reject)
@@ -103,47 +135,50 @@ class SettingsDialog(QDialog):
         header.addWidget(close_btn)
         root.addLayout(header)
 
+        header_divider = QFrame()
+        header_divider.setObjectName("settingsHeaderDivider")
+        header_divider.setFrameShape(QFrame.Shape.HLine)
+        root.addWidget(header_divider)
+
         scroll = QScrollArea()
+        scroll.setObjectName("settingsScroll")
         scroll.setWidgetResizable(True)
         scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         content = QWidget()
         content.setObjectName("settingsScrollContent")
         layout = QVBoxLayout(content)
-        layout.setSpacing(4)
-        layout.setContentsMargins(0, 0, 6, 0)
+        layout.setSpacing(8)
+        layout.setContentsMargins(4, 4, 8, 4)
 
-        layout.addWidget(self._section_label("藥水與門檻"))
-        keys_group = QGroupBox("藥水按鍵")
-        keys_form = QFormLayout(keys_group)
-        keys_form.setSpacing(12)
+        potion_section = self._settings_section()
+        potion_layout = QVBoxLayout(potion_section)
+        potion_layout.setContentsMargins(14, 14, 14, 14)
+        potion_layout.setSpacing(12)
+
+        keys_form = QFormLayout()
+        keys_form.setSpacing(10)
         self.heal_key_btn = KeyCaptureButton()
         self.heal_key_btn.set_key(str(config.get("heal_key", "1")))
         self.mana_key_btn = KeyCaptureButton()
         self.mana_key_btn.set_key(str(config.get("mana_key", "2")))
         keys_form.addRow(self._form_label("補血鍵"), self.heal_key_btn)
         keys_form.addRow(self._form_label("補魔鍵"), self.mana_key_btn)
-        layout.addWidget(keys_group)
+        potion_layout.addLayout(keys_form)
 
-        threshold_group = QGroupBox("觸發門檻")
-        th_layout = QVBoxLayout(threshold_group)
-        th_layout.setSpacing(14)
         self.heal_slider, self.heal_label = self._make_slider(
             int(config.get("heal_threshold", 45)), "補血", "life"
         )
         self.mana_slider, self.mana_label = self._make_slider(
             int(config.get("mana_threshold", 45)), "補魔", "mana"
         )
-        th_layout.addWidget(self.heal_label)
-        th_layout.addWidget(self.heal_slider)
-        th_layout.addWidget(self.mana_label)
-        th_layout.addWidget(self.mana_slider)
-        layout.addWidget(threshold_group)
+        potion_layout.addWidget(self.heal_label)
+        potion_layout.addWidget(self.heal_slider)
+        potion_layout.addWidget(self.mana_label)
+        potion_layout.addWidget(self.mana_slider)
 
-        layout.addWidget(self._section_label("進階"))
-        misc_group = QGroupBox("偵測與冷卻")
-        misc_form = QFormLayout(misc_group)
-        misc_form.setSpacing(12)
+        misc_form = QFormLayout()
+        misc_form.setSpacing(10)
         self.cooldown_spin = QDoubleSpinBox()
         self.cooldown_spin.setRange(0.25, 3.0)
         self.cooldown_spin.setSingleStep(0.05)
@@ -161,12 +196,13 @@ class SettingsDialog(QDialog):
         self.avg_spin.setRange(1, 15)
         self.avg_spin.setValue(int(config.get("moving_average_window", 5)))
         misc_form.addRow(self._form_label("移動平均"), self.avg_spin)
-        layout.addWidget(misc_group)
+        potion_layout.addLayout(misc_form)
+        layout.addWidget(potion_section)
 
-        layout.addWidget(self._section_label("熱鍵"))
-        hotkey_group = QGroupBox("全域熱鍵")
-        hotkey_form = QFormLayout(hotkey_group)
-        hotkey_form.setSpacing(12)
+        hotkey_section = self._settings_section()
+        hotkey_form = QFormLayout(hotkey_section)
+        hotkey_form.setContentsMargins(14, 14, 14, 14)
+        hotkey_form.setSpacing(10)
         self.hotkey_heal_btn = KeyCaptureButton()
         self.hotkey_heal_btn.set_key(str(config.get("hotkey_heal_toggle", "f6")))
         self.hotkey_mana_btn = KeyCaptureButton()
@@ -176,11 +212,11 @@ class SettingsDialog(QDialog):
         hotkey_form.addRow(self._form_label("補血開關"), self.hotkey_heal_btn)
         hotkey_form.addRow(self._form_label("補魔開關"), self.hotkey_mana_btn)
         hotkey_form.addRow(self._form_label("全域暫停"), self.hotkey_master_btn)
-        layout.addWidget(hotkey_group)
+        layout.addWidget(hotkey_section)
 
-        layout.addWidget(self._section_label("球體"))
-        cal_group = QGroupBox("校正")
-        cal_form = QVBoxLayout(cal_group)
+        cal_section = self._settings_section()
+        cal_form = QVBoxLayout(cal_section)
+        cal_form.setContentsMargins(14, 14, 14, 14)
         cal_form.setSpacing(12)
         self.radius_spin = QDoubleSpinBox()
         self.radius_spin.setRange(5.0, 12.0)
@@ -203,13 +239,14 @@ class SettingsDialog(QDialog):
         cal_layout.addWidget(btn_life)
         cal_layout.addWidget(btn_mana)
         cal_form.addLayout(cal_layout)
-        layout.addWidget(cal_group)
+        layout.addWidget(cal_section)
 
         layout.addStretch()
         scroll.setWidget(content)
         root.addWidget(scroll, stretch=1)
 
         btn_row = QHBoxLayout()
+        btn_row.setContentsMargins(0, 4, 0, 0)
         btn_row.setSpacing(10)
         save_btn = QPushButton("儲存設定")
         save_btn.setObjectName("primaryBtn")
@@ -221,7 +258,24 @@ class SettingsDialog(QDialog):
         btn_row.addWidget(save_btn)
         root.addLayout(btn_row)
 
-        self._attach_drag_handlers(panel)
+        self._attach_drag_handlers(self._panel)
+
+    def paintEvent(self, event) -> None:
+        """外緣柔和陰影（僅邊距區，不影響面板內可讀性）。"""
+        if hasattr(self, "_panel"):
+            painter = QPainter(self)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            base = self._panel.geometry()
+            for spread, alpha in ((12, 22), (7, 32), (3, 44)):
+                shadow = base.adjusted(-spread, -spread + 2, spread, spread + 4)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(QColor(72, 64, 108, alpha))
+                painter.drawRoundedRect(
+                    shadow,
+                    SETTINGS_PANEL_RADIUS + spread // 2,
+                    SETTINGS_PANEL_RADIUS + spread // 2,
+                )
+        super().paintEvent(event)
 
     def _attach_drag_handlers(self, root: QWidget) -> None:
         root.installEventFilter(self)
@@ -269,14 +323,15 @@ class SettingsDialog(QDialog):
     def mouseReleaseEvent(self, event) -> None:
         self._drag_pos = None
 
+    @staticmethod
+    def _settings_section() -> QFrame:
+        section = QFrame()
+        section.setObjectName("settingsSection")
+        return section
+
     def _form_label(self, text: str) -> QLabel:
         lbl = QLabel(text)
         lbl.setObjectName("formLabel")
-        return lbl
-
-    def _section_label(self, text: str) -> QLabel:
-        lbl = QLabel(text.upper())
-        lbl.setObjectName("sectionTitle")
         return lbl
 
     def _make_slider(
