@@ -19,6 +19,7 @@ from core.screen_coords import (
     qt_global_to_physical,
     radius_from_percent,
 )
+from ui.styles import CALIB_OVERLAY_BTN, CALIB_HINT_LIFE, CALIB_HINT_MANA
 
 
 def _sample_color_at(cx: int, cy: int) -> tuple[float, float, float] | None:
@@ -66,6 +67,7 @@ class ClickCalibrationOverlay(QWidget):
         self._preview_rect: tuple[int, int, int, int] | None = None
         self._preview_qt: QRect | None = None
         self._warning = ""
+        self._accent = QColor(229, 57, 53) if orb_type == "life" else QColor(33, 150, 243)
 
         virtual = QRect()
         for scr in QGuiApplication.screens():
@@ -85,12 +87,11 @@ class ClickCalibrationOverlay(QWidget):
         self.setMouseTracking(True)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setContentsMargins(24, 24, 24, 24)
 
         self._hint = QLabel(self._hint_text())
         self._hint.setStyleSheet(
-            "color: white; background: rgba(0,0,0,0.75); padding: 12px;"
-            " border-radius: 8px; font-size: 11pt;"
+            CALIB_HINT_LIFE if orb_type == "life" else CALIB_HINT_MANA
         )
         self._hint.setFont(QFont("Microsoft JhengHei", 11))
         self._hint.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
@@ -98,14 +99,13 @@ class ClickCalibrationOverlay(QWidget):
         layout.addStretch()
 
         btn_row = QHBoxLayout()
-        confirm = QPushButton("確認 (Enter)")
-        cancel = QPushButton("取消 (Esc)")
+        btn_row.setSpacing(12)
+        confirm = QPushButton("確認  Enter")
+        cancel = QPushButton("取消  Esc")
+        cancel.setObjectName("calCancelBtn")
         for b in (confirm, cancel):
-            b.setStyleSheet(
-                "QPushButton { background: #3d5afe; color: white; padding: 8px 16px;"
-                " border-radius: 6px; }"
-                "QPushButton:hover { background: #536dfe; }"
-            )
+            b.setStyleSheet(CALIB_OVERLAY_BTN)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
         confirm.clicked.connect(self._confirm)
         cancel.clicked.connect(lambda: self._finish(None))
         btn_row.addStretch()
@@ -114,9 +114,10 @@ class ClickCalibrationOverlay(QWidget):
         layout.addLayout(btn_row)
 
     def _hint_text(self, extra: str = "") -> str:
+        orb_name = "生命球（紅）" if self._orb_type == "life" else "魔力球（藍）"
         base = (
             f"{self._title}\n"
-            "點擊球體液體中心 · 滾輪調整大小 · Enter 確認 · Esc 取消"
+            f"點擊 {orb_name} 液體中心 · 滾輪調整大小 · Enter 確認 · Esc 取消"
         )
         if extra:
             return base + "\n" + extra
@@ -124,17 +125,26 @@ class ClickCalibrationOverlay(QWidget):
 
     def paintEvent(self, event) -> None:
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor(0, 0, 0, 115))
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 140))
 
         if self._preview_qt and self._preview_qt.width() > 2:
-            painter.setPen(QPen(QColor(76, 175, 80), 3, Qt.PenStyle.SolidLine))
-            painter.setBrush(QColor(76, 175, 80, 50))
-            painter.drawRect(self._preview_qt)
-            painter.setPen(QPen(Qt.GlobalColor.white))
             r = self._preview_qt
+            pen = QPen(self._accent, 3, Qt.PenStyle.SolidLine)
+            painter.setPen(pen)
+            painter.setBrush(QColor(self._accent.red(), self._accent.green(), self._accent.blue(), 45))
+            painter.drawRect(r)
+
+            cx = r.center().x()
+            cy = r.center().y()
+            cross = QPen(QColor(255, 255, 255, 200), 1, Qt.PenStyle.DashLine)
+            painter.setPen(cross)
+            painter.drawLine(cx - 12, cy, cx + 12, cy)
+            painter.drawLine(cx, cy - 12, cx, cy + 12)
+
+            painter.setPen(QPen(Qt.GlobalColor.white))
             painter.drawText(
-                r.topLeft() + QPoint(4, -8),
-                f"{r.width()}×{r.height()} px",
+                r.topLeft() + QPoint(6, -10),
+                f"{r.width()} × {r.height()} px",
             )
 
     def mousePressEvent(self, event) -> None:
@@ -150,7 +160,7 @@ class ClickCalibrationOverlay(QWidget):
         self._warning = _color_warning(self._orb_type, hsv) if hsv else ""
         extra = f"半徑 {self._radius_percent:.1f}%（{self._radius_px} px）"
         if self._warning:
-            extra += f" · {self._warning}"
+            extra += f"\n{self._warning}"
         self._hint.setText(self._hint_text(extra))
         self.update()
 
@@ -163,7 +173,7 @@ class ClickCalibrationOverlay(QWidget):
             self._update_preview()
             extra = f"半徑 {self._radius_percent:.1f}%（{self._radius_px} px）"
             if self._warning:
-                extra += f" · {self._warning}"
+                extra += f"\n{self._warning}"
             self._hint.setText(self._hint_text(extra))
             self.update()
 
@@ -184,7 +194,7 @@ class ClickCalibrationOverlay(QWidget):
 
     def _confirm(self) -> None:
         if self._preview_rect is None:
-            self._hint.setText(self._hint.text() + "\n請先點擊球體中心")
+            self._hint.setText(self._hint_text("請先點擊球體中心"))
             return
         self._finish(self._preview_rect)
 

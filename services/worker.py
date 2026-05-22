@@ -14,6 +14,30 @@ from core.orb_detector import OrbDetector
 from core.potion_controller import PotionController
 
 
+def _build_status(
+    cfg: dict[str, Any],
+    life: OrbDetector,
+    mana: OrbDetector,
+) -> tuple[str, bool]:
+    """依已啟用功能組合狀態訊息；anomaly 表示至少一項啟用中的功能被阻擋。"""
+    heal_on = bool(cfg.get("heal_enabled", True))
+    mana_on = bool(cfg.get("mana_enabled", True))
+    parts: list[str] = []
+
+    if heal_on and not life.is_calibrated:
+        parts.append("請校正生命球")
+    if mana_on and not mana.is_calibrated:
+        parts.append("請校正魔力球")
+    if heal_on and life.is_calibrated and life.anomaly_detected:
+        parts.append("生命球偵測異常")
+    if mana_on and mana.is_calibrated and mana.anomaly_detected:
+        parts.append("魔力球偵測異常")
+
+    status_msg = " · ".join(parts)
+    blocked = bool(parts)
+    return status_msg, blocked
+
+
 class PotionWorker(QThread):
     status_updated = pyqtSignal(float, float, bool, str)
     potion_fired = pyqtSignal(str)
@@ -64,30 +88,35 @@ class PotionWorker(QThread):
             hp = self._life.read_fill_percent()
             mp = self._mana.read_fill_percent()
 
-            anomaly = self._life.anomaly_detected or self._mana.anomaly_detected
-            status_msg = ""
-            if not self._life.is_calibrated or not self._mana.is_calibrated:
-                status_msg = "請校正球體"
-            elif anomaly:
-                status_msg = "偵測異常"
+            status_msg, blocked = _build_status(cfg, self._life, self._mana)
 
             hp_val = hp if hp is not None else -1.0
             mp_val = mp if mp is not None else -1.0
-            self.status_updated.emit(hp_val, mp_val, anomaly, status_msg)
+            self.status_updated.emit(hp_val, mp_val, blocked, status_msg)
 
-            master = bool(cfg.get("master_enabled", False))
-            can_act = master and not anomaly and status_msg == ""
+            master = bool(cfg.get("master_enabled", True))
+            heal_on = bool(cfg.get("heal_enabled", True))
+            mana_on = bool(cfg.get("mana_enabled", True))
 
-            if can_act and bool(cfg.get("heal_enabled", True)) and hp is not None:
+            heal_ready = (
+                heal_on
+                and self._life.is_calibrated
+                and not self._life.anomaly_detected
+            )
+            mana_ready = (
+                mana_on
+                and self._mana.is_calibrated
+                and not self._mana.anomaly_detected
+            )
+
+            if master and heal_ready and hp is not None:
                 if self._heal_ctrl.should_fire(hp):
-                    key = str(cfg.get("heal_key", "1"))
-                    press_key(key)
+                    press_key(str(cfg.get("heal_key", "1")))
                     self.potion_fired.emit("heal")
 
-            if can_act and bool(cfg.get("mana_enabled", True)) and mp is not None:
+            if master and mana_ready and mp is not None:
                 if self._mana_ctrl.should_fire(mp):
-                    key = str(cfg.get("mana_key", "2"))
-                    press_key(key)
+                    press_key(str(cfg.get("mana_key", "2")))
                     self.potion_fired.emit("mana")
 
             time.sleep(interval)

@@ -34,7 +34,18 @@
 
 ---
 
-## 三、用命令列上傳 Release（進階）
+## 三、用 Git 標籤觸發 CI 自動打包（可選）
+
+推送 `v*` 標籤後，GitHub Actions 會自動建置並附加 `POE2_AutoFlask-Windows.zip` 到 Release：
+
+```bash
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+---
+
+## 四、用命令列上傳 Release（進階）
 
 需先安裝 [GitHub CLI](https://cli.github.com/) 並登入：`gh auth login`
 
@@ -55,7 +66,7 @@ gh release create v1.0.0 dist\POE2_AutoFlask-Windows.zip ^
 
 ---
 
-## 四、GitHub Releases vs GitHub Packages
+## 五、GitHub Releases vs GitHub Packages
 
 | 功能 | 用途 | 本專案 |
 |------|------|--------|
@@ -64,7 +75,7 @@ gh release create v1.0.0 dist\POE2_AutoFlask-Windows.zip ^
 
 ---
 
-## 五、建議的 Release 說明範本
+## 六、建議的 Release 說明範本
 
 ```markdown
 ## 下載
@@ -86,7 +97,4 @@ gh release create v1.0.0 dist\POE2_AutoFlask-Windows.zip ^
 
 ---
 
-## 六、自動打包（可選）
-
-若已啟用 GitHub Actions，推送標籤 `v*` 會自動打包並上傳 Release。  
-見專案內 `.github/workflows/release.yml`。
+自動打包流程見上文「三、用 Git 標籤觸發 CI 自動打包」與 `.github/workflows/release.yml`。

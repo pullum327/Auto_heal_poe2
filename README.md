@@ -3,7 +3,7 @@
 
 透過螢幕擷取分析生命球與魔力球的填充比例，低於門檻時自動按下你設定的藥水按鍵。附半透明遊戲浮層與全域熱鍵。
 
-目前偵測採用「黑圈空區比例」：偵測球體液面以上的暗黑/透明黑背景，並以 `fill% = 100 - empty%` 估算剩餘量。建議在遊戲亮度、濾鏡與 UI 色調相對固定時使用，穩定度更高。
+偵測原理：在球體圓形區域內沿垂直中線取樣，以紅/藍液體色與校正時記錄的參考 HSV 估算填充比例。建議**滿血/滿魔**時點擊球心校正，讓參考色接近液體。
 
 ## 風險聲明
 
@@ -82,7 +82,7 @@ python -m venv .venv
 |------|----------|
 | 百分比不變 | 重新點擊球心校正；確認點在液體圓內、球體未被 UI 遮住 |
 | 框太大/太小 | 設定中調整「球體半徑 %」，或校正時用滾輪微調 |
-| 百分比跳動大 | 調高藥水冷卻；確認 Gamma/亮度正常 |
+| 百分比跳動大 | 設定中調高「移動平均」或藥水冷卻；確認 Gamma/亮度正常 |
 | 遊戲內沒反應 | 確認藥水按鍵與遊戲設定一致；POE2 需為視窗化 |
 | 改解析度後失效 | 重新校正生命球與魔力球 |
 
@@ -99,6 +99,15 @@ python -m venv .venv
 
 詳細發佈步驟見 [docs/GITHUB_RELEASE.md](docs/GITHUB_RELEASE.md)。
 
+**GitHub Actions 自動打包**：推送 `v*` 標籤（例如 `v1.0.1`）會觸發 [`.github/workflows/release.yml`](.github/workflows/release.yml) 建置並上傳 ZIP：
+
+```bash
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+亦可依文件手動上傳 `POE2_AutoFlask-Windows.zip`。
+
 ## 專案結構
 
 ```
@@ -108,5 +117,8 @@ build.bat            # 一鍵打包
 core/                # 擷取、偵測、按鍵邏輯
 ui/                  # 浮層、設定、校正
 services/            # 背景 worker、熱鍵
+tests/               # 單元測試
 docs/                # GitHub Releases 教學
 ```
+
+開發者執行測試：`python -m unittest discover -s tests`

@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Callable
 
 from pynput import keyboard
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_hotkey(hotkey: str) -> frozenset[keyboard.Key | keyboard.KeyCode]:
@@ -80,7 +83,7 @@ class HotkeyService:
                 try:
                     callback()
                 except Exception:
-                    pass
+                    logger.exception("熱鍵回呼執行失敗")
                 break
 
     def _on_release(self, key: keyboard.Key | keyboard.KeyCode) -> None:

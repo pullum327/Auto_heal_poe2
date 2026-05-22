@@ -9,5 +9,3 @@ config.json
 debug-*.log
 .cursor/
 *.egg-info/
-dist/
-build/

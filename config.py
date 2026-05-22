@@ -23,8 +23,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "mana_key": "2",
     "heal_threshold": 45,
     "mana_threshold": 45,
-    "heal_hysteresis": 10,  # 已廢棄，保留以相容舊 config.json
-    "mana_hysteresis": 10,
     "potion_cooldown": 1.0,
     "poll_interval_ms": 80,
     "moving_average_window": 5,
@@ -57,12 +55,17 @@ def load_config() -> dict[str, Any]:
         data = json.load(f)
     merged = default_config()
     merged.update(data)
+    merged.pop("heal_hysteresis", None)
+    merged.pop("mana_hysteresis", None)
     return merged
 
 
 def save_config(config: dict[str, Any]) -> None:
+    data = dict(config)
+    data.pop("heal_hysteresis", None)
+    data.pop("mana_hysteresis", None)
     with CONFIG_PATH.open("w", encoding="utf-8") as f:
-        json.dump(config, f, indent=2, ensure_ascii=False)
+        json.dump(data, f, indent=2, ensure_ascii=False)
 
 
 def rect_from_config(value: list[int] | None) -> tuple[int, int, int, int] | None:
