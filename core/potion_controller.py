@@ -26,6 +26,9 @@ class PotionController:
             self.cooldown = cooldown
 
     def should_fire(self, fill_percent: float) -> bool:
+        if fill_percent <= 0:
+            return False
+
         if fill_percent >= self.threshold:
             return False
 
